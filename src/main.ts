@@ -153,7 +153,7 @@ app.innerHTML = `
               <div id="stats" class="stats"></div>
               <p class="result-note">
                 レイヤーは「オブジェクト → UVチャンネル → アイランド」のグループ構造です。
-                各UVチャンネルの先頭には黒線の「UV Edges」レイヤー、各アイランドにはパディング付きのレイヤーマスクが適用されています。
+                各UVチャンネルの末尾には黒線の「UV Edges」レイヤー、各アイランドにはパディング付きのレイヤーマスクが適用されています。
               </p>
               <button id="downloadButton" class="primary-button" type="button">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

@@ -37,19 +37,6 @@ export function buildPsd(
     const uvGroup = createGroup(combo.uvLabel);
     objectGroup.children!.push(uvGroup);
 
-    if (combo.edgeLayer) {
-      uvGroup.children!.push({
-        name: 'UV Edges',
-        top: combo.edgeLayer.top,
-        left: combo.edgeLayer.left,
-        imageData: {
-          data: combo.edgeLayer.data,
-          width: combo.edgeLayer.width,
-          height: combo.edgeLayer.height,
-        },
-      });
-    }
-
     for (const mask of combo.masks) {
       const imageData: PixelData = {
         data: mask.data,
@@ -68,6 +55,19 @@ export function buildPsd(
           defaultColor: 0,
           positionRelativeToLayer: true,
           imageData,
+        },
+      });
+    }
+
+    if (combo.edgeLayer) {
+      uvGroup.children!.push({
+        name: 'UV Edges',
+        top: combo.edgeLayer.top,
+        left: combo.edgeLayer.left,
+        imageData: {
+          data: combo.edgeLayer.data,
+          width: combo.edgeLayer.width,
+          height: combo.edgeLayer.height,
         },
       });
     }

@@ -116,9 +116,9 @@ async function main(): Promise<void> {
     throw new Error(`Expected 3 PSD layers, got ${layers.length}`);
   }
 
-  const edge = layers[0];
+  const edge = layers[layers.length - 1];
   if (edge.name !== 'UV Edges') {
-    throw new Error(`Expected the edge layer first, got ${edge.name}`);
+    throw new Error(`Expected the edge layer last, got ${edge.name}`);
   }
   if (edge.mask) {
     throw new Error('UV edge layer must not have a layer mask.');
@@ -134,7 +134,7 @@ async function main(): Promise<void> {
     throw new Error('UV edge layer unexpectedly has a mask channel.');
   }
 
-  for (const layer of layers.slice(1)) {
+  for (const layer of layers.slice(0, -1)) {
     if (!layer.mask) {
       throw new Error('Layer mask was not written.');
     }
