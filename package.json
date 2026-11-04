@@ -1,0 +1,32 @@
+{
+  "name": "mesh-to-uv-psd",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Convert FBX / OBJ / GLB meshes into a layered PSD where every UV island becomes a masked layer.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test:psd": "tsx scripts/test-psd.ts",
+    "test:e2e": "node scripts/test-e2e.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/t-kuzuno/mesh-to-uv-psd.git"
+  },
+  "license": "MIT",
+  "homepage": "https://t-kuzuno.github.io/mesh-to-uv-psd/",
+  "dependencies": {
+    "ag-psd": "^34.1.0",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.187.0",
+    "puppeteer-core": "^25.16.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}
