@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { BufferGeometry, Float32BufferAttribute } from 'three';
 import { buildPsd } from '../src/psd.ts';
-import { rasterizeIslands } from '../src/raster.ts';
+import { rasterizeEdges, rasterizeIslands } from '../src/raster.ts';
 import type { ComboResult } from '../src/types.ts';
 import { buildUVIslands } from '../src/uv.ts';
 
@@ -42,13 +42,50 @@ async function main(): Promise<void> {
   }
 
   const resolution = 64;
+  const padding = 2;
   const coverage = new Uint8Array(resolution * resolution);
-  const masks = await rasterizeIslands(triangles, resolution, coverage);
+  const unpaddedCoverage = new Uint8Array(resolution * resolution);
+  const unpaddedMasks = await rasterizeIslands(triangles, resolution, unpaddedCoverage, 0);
+  const masks = await rasterizeIslands(triangles, resolution, coverage, padding);
   if (masks.length !== 2) {
     throw new Error(`Expected 2 visible islands, got ${masks.length}`);
   }
   if (masks.some((mask) => mask.pixelCount <= 0)) {
     throw new Error('A rasterized island has no pixels.');
+  }
+
+  const unpaddedPixels = unpaddedMasks.reduce((total, mask) => total + mask.pixelCount, 0);
+  const paddedPixels = masks.reduce((total, mask) => total + mask.pixelCount, 0);
+  if (paddedPixels <= unpaddedPixels) {
+    throw new Error(`Mask padding did not expand the islands (${unpaddedPixels} -> ${paddedPixels}).`);
+  }
+
+  const grew = masks.some(
+    (mask, index) =>
+      mask.width > unpaddedMasks[index].width || mask.height > unpaddedMasks[index].height,
+  );
+  if (!grew) {
+    throw new Error('Padded masks have the same bounds as unpadded masks.');
+  }
+
+  const edgeLayer = await rasterizeEdges(triangles, resolution, 1);
+  if (!edgeLayer || edgeLayer.pixelCount <= 0) {
+    throw new Error('UV edge layer was not rasterized.');
+  }
+  if (!edgeLayer.data.some((value, index) => index % 4 === 3 && value === 0)) {
+    throw new Error('UV edge layer has no transparent pixels.');
+  }
+  if (!edgeLayer.data.some((value, index) => index % 4 === 3 && value === 255)) {
+    throw new Error('UV edge layer has no opaque pixels.');
+  }
+
+  const edgeCoverage = new Uint8Array(resolution * resolution);
+  for (let y = 0; y < edgeLayer.height; y += 1) {
+    const sourceRow = y * edgeLayer.width * 4;
+    const targetRow = (edgeLayer.top + y) * resolution + edgeLayer.left;
+    for (let x = 0; x < edgeLayer.width; x += 1) {
+      if (edgeLayer.data[sourceRow + x * 4 + 3] !== 0) edgeCoverage[targetRow + x] = 255;
+    }
   }
 
   const combo: ComboResult = {
@@ -59,8 +96,9 @@ async function main(): Promise<void> {
     uvKey: 'uv',
     islandCount: masks.length,
     masks,
+    edgeLayer,
   };
-  const psdBuffer = buildPsd(resolution, resolution, [combo], coverage);
+  const psdBuffer = buildPsd(resolution, resolution, [combo], coverage, edgeCoverage);
   const bytes = new Uint8Array(psdBuffer);
   if (String.fromCharCode(...bytes.slice(0, 4)) !== '8BPS') {
     throw new Error('Generated file is not a PSD.');
@@ -74,11 +112,29 @@ async function main(): Promise<void> {
   const uvGroup = objectGroup?.children?.[0];
   const layers = uvGroup?.children ?? [];
 
-  if (layers.length !== 2) {
-    throw new Error(`Expected 2 PSD layers, got ${layers.length}`);
+  if (layers.length !== 3) {
+    throw new Error(`Expected 3 PSD layers, got ${layers.length}`);
   }
 
-  for (const layer of layers) {
+  const edge = layers[0];
+  if (edge.name !== 'UV Edges') {
+    throw new Error(`Expected the edge layer first, got ${edge.name}`);
+  }
+  if (edge.mask) {
+    throw new Error('UV edge layer must not have a layer mask.');
+  }
+
+  const edgeIds = (edge.rawData?.channels ?? []).map((channel) => channel.id);
+  for (const expected of [-1, 0, 1, 2]) {
+    if (!edgeIds.includes(expected)) {
+      throw new Error(`Expected edge channel ${expected}, got ${edgeIds.join(', ')}`);
+    }
+  }
+  if (edgeIds.includes(-2)) {
+    throw new Error('UV edge layer unexpectedly has a mask channel.');
+  }
+
+  for (const layer of layers.slice(1)) {
     if (!layer.mask) {
       throw new Error('Layer mask was not written.');
     }
@@ -107,6 +163,10 @@ async function main(): Promise<void> {
         ok: true,
         islands: masks.length,
         layers: layers.length,
+        padding,
+        unpaddedPixels,
+        paddedPixels,
+        edgePixels: edgeLayer.pixelCount,
         psdBytes: bytes.byteLength,
         output: path,
       },

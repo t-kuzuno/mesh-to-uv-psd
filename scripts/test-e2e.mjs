@@ -177,6 +177,16 @@ function countLayers(children) {
   return count;
 }
 
+function countEdgeLayers(children) {
+  if (!children) return 0;
+  let count = 0;
+  for (const child of children) {
+    if (child.children) count += countEdgeLayers(child.children);
+    else if (child.name === 'UV Edges') count += 1;
+  }
+  return count;
+}
+
 async function waitForFile(directory, timeoutMs = 20000) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
@@ -265,8 +275,12 @@ try {
     skipCompositeImageData: true,
   });
   const layers = countLayers(parsed.children);
-  if (layers !== 4) {
-    throw new Error(`Expected 4 PSD layers, got ${layers}`);
+  if (layers !== 6) {
+    throw new Error(`Expected 6 PSD layers, got ${layers}`);
+  }
+  const edgeLayers = countEdgeLayers(parsed.children);
+  if (edgeLayers !== 2) {
+    throw new Error(`Expected 2 UV edge layers, got ${edgeLayers}`);
   }
 
   await page.screenshot({ path: join(workDir, 'ui-result.png'), fullPage: true });
@@ -313,8 +327,12 @@ try {
     { useRawData: true, skipCompositeImageData: true },
   );
   const glbLayers = countLayers(glbParsed.children);
-  if (glbLayers !== 2) {
-    throw new Error(`Expected 2 PSD layers from the two UV channels, got ${glbLayers}`);
+  if (glbLayers !== 4) {
+    throw new Error(`Expected 4 PSD layers from the two UV channels, got ${glbLayers}`);
+  }
+  const glbEdgeLayers = countEdgeLayers(glbParsed.children);
+  if (glbEdgeLayers !== 2) {
+    throw new Error(`Expected 2 UV edge layers from the two UV channels, got ${glbEdgeLayers}`);
   }
 
   await page.screenshot({ path: join(workDir, 'ui-multi-uv.png'), fullPage: true });
@@ -331,8 +349,10 @@ try {
         stats,
         psdBytes: bytes.byteLength,
         psdLayers: layers,
+        edgeLayers,
         multiUvStats: glbStats,
         multiUvPsdLayers: glbLayers,
+        multiUvEdgeLayers: glbEdgeLayers,
         screenshots: [
           join(workDir, 'ui-loaded.png'),
           join(workDir, 'ui-result.png'),

@@ -449,6 +449,12 @@ input[type='checkbox'] {
   gap: 14px;
 }
 
+.settings-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .field {
   display: grid;
   gap: 7px;
@@ -696,5 +702,9 @@ input[type='checkbox'] {
   .notice {
     margin-left: 18px;
     margin-right: 18px;
+  }
+
+  .settings-row {
+    grid-template-columns: 1fr;
   }
 }

@@ -33,6 +33,8 @@ export interface Selection {
 
 export interface ConvertOptions {
   resolution: number;
+  padding: number;
+  edgeWidth: number;
   selections: Selection[];
 }
 
@@ -47,6 +49,15 @@ export interface IslandMask {
   pixelCount: number;
 }
 
+export interface EdgeLayer {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+  pixelCount: number;
+}
+
 export interface ComboResult {
   objectId: string;
   objectName: string;
@@ -55,4 +66,5 @@ export interface ComboResult {
   uvKey: string;
   islandCount: number;
   masks: IslandMask[];
+  edgeLayer: EdgeLayer | null;
 }

@@ -21,6 +21,7 @@ export function buildPsd(
   height: number,
   combos: ComboResult[],
   coverage: Uint8Array,
+  edgeCoverage?: Uint8Array,
 ): ArrayBuffer {
   const objectGroups = new Map<string, Layer>();
   const rootLayers: Layer[] = [];
@@ -35,6 +36,19 @@ export function buildPsd(
 
     const uvGroup = createGroup(combo.uvLabel);
     objectGroup.children!.push(uvGroup);
+
+    if (combo.edgeLayer) {
+      uvGroup.children!.push({
+        name: 'UV Edges',
+        top: combo.edgeLayer.top,
+        left: combo.edgeLayer.left,
+        imageData: {
+          data: combo.edgeLayer.data,
+          width: combo.edgeLayer.width,
+          height: combo.edgeLayer.height,
+        },
+      });
+    }
 
     for (const mask of combo.masks) {
       const imageData: PixelData = {
@@ -61,8 +75,15 @@ export function buildPsd(
 
   const composite = new Uint8ClampedArray(width * height * 4);
   for (let i = 0; i < coverage.length; i += 1) {
-    if (!coverage[i]) continue;
     const offset = i * 4;
+    if (edgeCoverage?.[i]) {
+      composite[offset] = 0;
+      composite[offset + 1] = 0;
+      composite[offset + 2] = 0;
+      composite[offset + 3] = 255;
+      continue;
+    }
+    if (!coverage[i]) continue;
     composite[offset] = 255;
     composite[offset + 1] = 255;
     composite[offset + 2] = 255;

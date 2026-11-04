@@ -13,8 +13,8 @@ app.innerHTML = `
       <span class="badge">Browser only · no upload</span>
       <h1>Mesh <span>→ UV PSD</span></h1>
       <p class="lead">
-        FBX / OBJ / GLB を読み込み、UVアイランドごとにマスク付きレイヤーを持つ PSD を生成します。
-        オブジェクトやUVチャンネルが複数ある場合は、変換する組み合わせを選べます。
+        FBX / OBJ / GLB を読み込み、UVアイランドごとにパディング付きマスクレイヤーを持つ PSD を生成します。
+        UVメッシュのエッジを黒線で示すレイヤーもオブジェクト・UVチャンネルごとに追加されます。
       </p>
     </header>
 
@@ -75,7 +75,7 @@ app.innerHTML = `
             <div class="card-head">
               <div>
                 <h2>変換設定</h2>
-                <p>UVアイランドを検出し、1アイランド = 1マスクレイヤーで出力します。</p>
+                <p>UVアイランドを検出し、1アイランド = 1マスクレイヤーで出力します。UVエッジの黒線レイヤーも追加します。</p>
               </div>
             </div>
             <div class="card-body">
@@ -90,6 +90,29 @@ app.innerHTML = `
                   </select>
                   <p class="field-note">解像度が高いほどマスクが精細になりますが、PSDサイズと処理時間が増えます。</p>
                 </div>
+
+                <div class="settings-row">
+                  <div class="field">
+                    <label for="padding">マスクのパディング</label>
+                    <select id="padding">
+                      <option value="0">0 px</option>
+                      <option value="1">1 px</option>
+                      <option value="2">2 px</option>
+                      <option value="4" selected>4 px</option>
+                      <option value="8">8 px</option>
+                      <option value="16">16 px</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="edgeWidth">エッジ線の太さ</label>
+                    <select id="edgeWidth">
+                      <option value="1" selected>1 px</option>
+                      <option value="2">2 px</option>
+                      <option value="3">3 px</option>
+                    </select>
+                  </div>
+                </div>
+                <p class="field-note">パディングは各UVアイランドのマスクを外側へ拡張します。</p>
 
                 <div class="summary-box">
                   <span>選択中のチャンネル</span>
@@ -130,7 +153,7 @@ app.innerHTML = `
               <div id="stats" class="stats"></div>
               <p class="result-note">
                 レイヤーは「オブジェクト → UVチャンネル → アイランド」のグループ構造です。
-                各レイヤーにはアイランド形状のレイヤーマスクが適用されています。
+                各UVチャンネルの先頭には黒線の「UV Edges」レイヤー、各アイランドにはパディング付きのレイヤーマスクが適用されています。
               </p>
               <button id="downloadButton" class="primary-button" type="button">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -171,6 +194,8 @@ const selectAllButton = must<HTMLButtonElement>('#selectAllButton');
 const selectFirstButton = must<HTMLButtonElement>('#selectFirstButton');
 const clearButton = must<HTMLButtonElement>('#clearButton');
 const resolutionSelect = must<HTMLSelectElement>('#resolution');
+const paddingSelect = must<HTMLSelectElement>('#padding');
+const edgeWidthSelect = must<HTMLSelectElement>('#edgeWidth');
 const selectionCount = must<HTMLElement>('#selectionCount');
 const convertButton = must<HTMLButtonElement>('#convertButton');
 const progressWrap = must<HTMLDivElement>('#progressWrap');
@@ -231,6 +256,8 @@ function setBusy(next: boolean): void {
   clearButton.disabled = next;
   fileInput.disabled = next;
   resolutionSelect.disabled = next;
+  paddingSelect.disabled = next;
+  edgeWidthSelect.disabled = next;
   objectList.classList.toggle('is-busy', next);
   updateSelectionSummary();
 }
@@ -351,16 +378,34 @@ function drawPreview(conversion: ConversionResult): void {
   const step = conversion.width / size;
 
   for (let y = 0; y < size; y += 1) {
-    const sourceY = Math.min(conversion.height - 1, Math.floor((y + 0.5) * step));
+    const startY = Math.floor(y * step);
+    const endY = Math.min(conversion.height, Math.max(startY + 1, Math.floor((y + 1) * step)));
 
     for (let x = 0; x < size; x += 1) {
-      const sourceX = Math.min(conversion.width - 1, Math.floor((x + 0.5) * step));
-      if (!conversion.coverage[sourceY * conversion.width + sourceX]) continue;
+      const startX = Math.floor(x * step);
+      const endX = Math.min(conversion.width, Math.max(startX + 1, Math.floor((x + 1) * step)));
+      let edge = false;
+      let covered = false;
+
+      for (let sourceY = startY; sourceY < endY && !edge; sourceY += 1) {
+        const row = sourceY * conversion.width;
+
+        for (let sourceX = startX; sourceX < endX; sourceX += 1) {
+          const index = row + sourceX;
+          if (conversion.edgeCoverage[index]) {
+            edge = true;
+            break;
+          }
+          if (conversion.coverage[index]) covered = true;
+        }
+      }
+
+      if (!edge && !covered) continue;
 
       const offset = (y * size + x) * 4;
-      image.data[offset] = 255;
-      image.data[offset + 1] = 255;
-      image.data[offset + 2] = 255;
+      image.data[offset] = edge ? 0 : 255;
+      image.data[offset + 1] = edge ? 0 : 255;
+      image.data[offset + 2] = edge ? 0 : 255;
       image.data[offset + 3] = 255;
     }
   }
@@ -464,6 +509,8 @@ async function startConversion(): Promise<void> {
       model,
       {
         resolution: Number(resolutionSelect.value),
+        padding: Number(paddingSelect.value),
+        edgeWidth: Number(edgeWidthSelect.value),
         selections,
       },
       {
