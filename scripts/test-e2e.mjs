@@ -8,7 +8,8 @@ import puppeteer from 'puppeteer-core';
 
 const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const port = 4173;
-const baseUrl = `http://127.0.0.1:${port}/`;
+const deployedUrl = process.env.E2E_BASE_URL;
+const baseUrl = deployedUrl ?? `http://127.0.0.1:${port}/`;
 const workDir = mkdtempSync(join(tmpdir(), 'mesh-to-uv-psd-e2e-'));
 const downloadDir = join(workDir, 'downloads');
 const objPath = join(workDir, 'two-objects.obj');
@@ -187,7 +188,7 @@ async function waitForFile(directory, timeoutMs = 20000) {
   throw new Error('PSD download did not appear.');
 }
 
-const server = startPreview();
+const server = deployedUrl ? null : startPreview();
 let browser;
 
 try {
@@ -344,7 +345,7 @@ try {
   );
 } finally {
   if (browser) await browser.close();
-  server.kill();
+  if (server) server.kill();
   await delay(500);
   if (existsSync(downloadDir)) {
     // leave temp files for inspection
